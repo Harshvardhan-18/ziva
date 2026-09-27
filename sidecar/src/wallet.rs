@@ -1,65 +1,186 @@
-use anyhow::Result;
-use zingolib::lightclient::LightClient;
-use zingoconfig::{ZingoConfig, ChainType};
-use std::sync::Arc;
+//! ZivaWallet: thin wrapper around zingolib v6 LightClient for ZIVA sidecar.
+//!
+//! zingolib v6 uses a two-step propose → execute pattern for sending:
+//!   1. `client.propose_send(TransactionRequest, account_id)` → stored proposal
+//!   2. `client.execute_proposal()` → Vec<TransmitReport> (one per step)
+//!
+//! The wallet must be synced before balances are accurate and before
+//! proposals can be built. Sync is async and can run in background.
+
+use std::path::PathBuf;
+
+use anyhow::{Context, Result, anyhow};
+use tracing::{debug, info, warn};
+
+use zingolib::{
+    config::{ChainType, ClientConfig, WalletConfig, lib_birthday},
+    lightclient::LightClient,
+    wallet::WalletBase,
+};
+
+/// The testnet lightwalletd endpoint.
+const TESTNET_LIGHTWALLETD: &str = "https://testnet.zec.rocks:443";
+
+/// Wallet data directory inside the sidecar's storage.
+const WALLET_DIR: &str = "/app/wallet";
+
+/// ZIP-32 account 0 (the only account ZIVA uses).
+const ACCOUNT_ZERO: zip32::AccountId = zip32::AccountId::ZERO;
 
 pub struct ZivaWallet {
-    pub client: Arc<LightClient>,
+    pub client: LightClient,
 }
 
 impl ZivaWallet {
+    /// Create or restore a testnet wallet.
+    ///
+    /// If `seed_phrase` is `Some`, the wallet is restored from that mnemonic
+    /// at the testnet Library Birthday (= earliest safe height for a fresh wallet).
+    /// If `None`, a brand-new wallet is generated.
     pub async fn new(seed_phrase: Option<String>) -> Result<Self> {
-        // testnet.zec.rocks:443
-        let server_uri = "https://testnet.zec.rocks:443".parse()?;
-        
-        // TODO: verify against zingolib 0.x.x API
-        // Creating config and setting lightwalletd_uri
-        let mut config = ZingoConfig::build(ChainType::Testnet);
-        config.set_lightwalletd_uri(server_uri);
-        
-        let client = if let Some(seed) = seed_phrase {
-            // TODO: verify against zingolib 0.x.x API
-            // Likely LightClient::create_from_wallet_base_async
-            LightClient::create_from_wallet_base_async(
-                zingolib::wallet::WalletBase::MnemonicPhrase(seed),
-                &config,
-                0, // height
-                false, // overwrite
-            ).await.map_err(|e| anyhow::anyhow!("Failed to restore wallet: {:?}", e))?
-        } else {
-            // TODO: verify against zingolib 0.x.x API
-            // Likely LightClient::new or LightClient::create_new
-            LightClient::new(&config, 0).map_err(|e| anyhow::anyhow!("Failed to create wallet: {:?}", e))?
+        // Ensure rustls provider is registered (required for TLS indexer URIs).
+        zingo_netutils::ensure_default_crypto_provider();
+
+        let server_uri: http::Uri = TESTNET_LIGHTWALLETD
+            .parse()
+            .context("parse lightwalletd URI")?;
+
+        let wallet_dir = PathBuf::from(
+            std::env::var("WALLET_DIR").unwrap_or_else(|_| WALLET_DIR.to_string()),
+        );
+        std::fs::create_dir_all(&wallet_dir).context("create wallet directory")?;
+
+        let wallet_config = match seed_phrase {
+            Some(phrase) => {
+                info!("Restoring wallet from seed phrase (testnet)");
+                WalletConfig::MnemonicPhrase {
+                    phrase,
+                    birthday: lib_birthday(ChainType::Testnet),
+                }
+            }
+            None => {
+                info!("Creating new testnet wallet");
+                WalletConfig::NewSeed {
+                    chain_height: lib_birthday(ChainType::Testnet),
+                }
+            }
         };
 
-        Ok(Self {
-            client: Arc::new(client),
-        })
+        let config = ClientConfig::builder()
+            .data_dir(wallet_dir)
+            .chain_type(ChainType::Testnet)
+            .wallet_config(wallet_config)
+            .indexer_uri(server_uri)
+            .build()
+            .context("build ClientConfig")?;
+
+        let client = LightClient::new(config, false)
+            .await
+            .map_err(|e| anyhow!("LightClient::new failed: {e:?}"))?;
+
+        Ok(Self { client })
     }
 
-    pub async fn do_sync(&self) -> Result<()> {
-        // TODO: verify against zingolib 0.x.x API
-        self.client.do_sync(true).await.map_err(|e| anyhow::anyhow!("Failed to sync: {:?}", e))?;
+    /// Trigger a background sync and wait for it to complete.
+    pub async fn sync(&mut self) -> Result<()> {
+        use pepper_sync::wallet::SyncMode;
+
+        debug!("Starting wallet sync...");
+        self.client
+            .start_sync(SyncMode::Normal)
+            .await
+            .map_err(|e| anyhow!("sync start failed: {e:?}"))?;
+
+        // Poll until sync is complete (timeout: 120 s)
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        loop {
+            use pepper_sync::wallet::SyncMode;
+            let mode = self.client.sync_mode();
+            if mode == SyncMode::NotRunning {
+                break;
+            }
+            if std::time::Instant::now() > deadline {
+                warn!("Sync timed out after 120 s — balance may be stale");
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+        info!("Wallet sync complete");
         Ok(())
     }
 
-    pub async fn get_balance(&self) -> Result<u64> {
-        // TODO: verify against zingolib 0.x.x API
-        let _balance_info = self.client.do_balance().await;
-        // Stub implementation
-        Ok(0)
+    /// Return the wallet's current shielded (Orchard + Sapling) balance in zatoshis.
+    pub async fn balance_zat(&self) -> Result<u64> {
+        let wallet = self.client.wallet().read().await;
+        let balance = wallet
+            .spendable_balance_of_account(ACCOUNT_ZERO)
+            .map_err(|e| anyhow!("balance error: {e:?}"))?;
+        // balance is in zatoshis (u64)
+        Ok(u64::from(balance))
     }
 
-    pub async fn get_address(&self) -> Result<String> {
-        // TODO: verify against zingolib 0.x.x API
-        let addresses = self.client.do_addresses().await;
-        // Stub implementation
-        Ok("ztestsapling1...".to_string())
+    /// Return the wallet's primary unified address as a string.
+    pub async fn address(&self) -> Result<String> {
+        let wallet = self.client.wallet().read().await;
+        let addr = wallet
+            .unified_address(ACCOUNT_ZERO)
+            .map_err(|e| anyhow!("address error: {e:?}"))?;
+        Ok(addr.encode(&ChainType::Testnet))
     }
 
-    pub async fn send(&self, _to_address: &str, _amount_zat: u64, _memo: Option<&str>) -> Result<String> {
-        // TODO: verify against zingolib 0.x.x API
-        // self.client.do_send(...)
-        Ok("txid_stub".to_string())
+    /// Build and broadcast a shielded transaction.
+    /// Returns the txid hex string on success.
+    /// Amount is in zatoshis (1 ZEC = 100_000_000 zatoshis).
+    pub async fn send(
+        &mut self,
+        to_address: &str,
+        amount_zat: u64,
+        memo: Option<&str>,
+    ) -> Result<String> {
+        use zcash_address::ZcashAddress;
+        use zcash_client_backend::zip321::{Payment, TransactionRequest};
+        use zcash_protocol::{memo::MemoBytes, value::Zatoshis};
+
+        let recipient: ZcashAddress = to_address
+            .parse()
+            .map_err(|e| anyhow!("invalid recipient address '{to_address}': {e}"))?;
+
+        let amount = Zatoshis::from_u64(amount_zat)
+            .map_err(|_| anyhow!("invalid amount: {amount_zat} zatoshis"))?;
+
+        let memo_bytes: Option<MemoBytes> = memo
+            .map(|m| MemoBytes::from_bytes(m.as_bytes()))
+            .transpose()
+            .map_err(|e| anyhow!("invalid memo: {e}"))?;
+
+        let payment = Payment::new(recipient, amount, memo_bytes, None, None, vec![])
+            .map_err(|e| anyhow!("invalid payment: {e}"))?;
+
+        let request = TransactionRequest::new(vec![payment])
+            .map_err(|e| anyhow!("invalid TransactionRequest: {e}"))?;
+
+        // Step 1: Propose
+        info!("Proposing send of {amount_zat} zat to {to_address}");
+        self.client
+            .propose_send(request, ACCOUNT_ZERO)
+            .await
+            .map_err(|e| anyhow!("propose_send failed: {e:?}"))?;
+
+        // Step 2: Execute (build + transmit)
+        info!("Executing proposal...");
+        let reports = self
+            .client
+            .execute_proposal()
+            .await
+            .map_err(|e| anyhow!("execute_proposal failed: {e:?}"))?;
+
+        // Return the first txid (simple sends always produce exactly one)
+        let txid = reports
+            .first()
+            .map(|r| r.txid.to_string())
+            .ok_or_else(|| anyhow!("execute_proposal returned no transactions"))?;
+
+        info!("Transaction broadcast: txid={txid}");
+        Ok(txid)
     }
 }
