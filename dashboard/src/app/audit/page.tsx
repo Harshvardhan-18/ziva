@@ -24,7 +24,6 @@ export default function AuditLogPage() {
   };
 
   const exportCSV = () => {
-    // Simple CSV export
     const headers = ["ID", "Agent", "Vendor", "Amount USD", "Amount ZEC", "Status", "Risk Score", "Requested At", "TxID"];
     const csvContent = logs.map(p => 
       `${p.id},${p.agent_name},${p.vendor_name},${p.amount_usd},${p.amount_zec},${p.status},${p.jev_risk_score},${p.requested_at},${p.txid || ""}`
@@ -40,63 +39,72 @@ export default function AuditLogPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto flex flex-col h-full pb-8">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="max-w-6xl mx-auto flex flex-col h-full p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-100 mb-2">Audit Log</h1>
-          <p className="text-slate-400">Comprehensive record of all policy checks and decisions.</p>
+          <h1 className="text-xl font-bold tracking-tight text-white">
+            Audit Log
+          </h1>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Deterministic compliance ledger recording all policy engine evaluations and settlement states.
+          </p>
         </div>
         <Button 
           variant="outline" 
+          size="sm"
           onClick={exportCSV}
-          className="border-slate-700 hover:bg-slate-800 text-slate-200"
+          className="border-border hover:bg-zinc-900 text-zinc-300 font-mono text-xs h-8 px-3"
         >
-          <Download className="w-4 h-4 mr-2" />
+          <Download className="size-3.5 mr-1.5" />
           Export CSV
         </Button>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm flex-1">
-        <div className="overflow-x-auto">
+      <div className="border border-border bg-black rounded-lg overflow-hidden flex-1 flex flex-col">
+        <div className="overflow-x-auto flex-1">
           <Table>
-            <TableHeader className="bg-slate-950">
-              <TableRow className="border-slate-800 hover:bg-slate-950">
-                <TableHead className="w-[50px]"></TableHead>
-                <TableHead className="text-slate-400 font-semibold">Date</TableHead>
-                <TableHead className="text-slate-400 font-semibold">Agent</TableHead>
-                <TableHead className="text-slate-400 font-semibold">Vendor</TableHead>
-                <TableHead className="text-slate-400 font-semibold text-right">Amount (USD)</TableHead>
-                <TableHead className="text-slate-400 font-semibold text-center">Status</TableHead>
-                <TableHead className="text-slate-400 font-semibold">Transaction ID</TableHead>
+            <TableHeader className="bg-zinc-950 border-b border-border">
+              <TableRow className="border-border hover:bg-zinc-950">
+                <TableHead className="w-[36px]"></TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">Date</TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">Agent</TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">Vendor</TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 text-right">Amount (USD)</TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 text-center">Status</TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">Transaction ID</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {logs.length === 0 ? (
-                <TableRow className="border-slate-800">
-                  <TableCell colSpan={7} className="text-center py-12 text-slate-500">
-                    No audit logs found.
+                <TableRow className="border-border">
+                  <TableCell colSpan={7} className="text-center py-16 text-xs font-mono text-zinc-500">
+                    No records found in audit database.
                   </TableCell>
                 </TableRow>
               ) : (
                 logs.map((log) => (
                   <React.Fragment key={log.id}>
                     <TableRow 
-                      className={`border-slate-800/50 hover:bg-slate-800/30 cursor-pointer ${expandedId === log.id ? 'bg-slate-800/30' : ''}`}
+                      className={`border-border hover:bg-zinc-950/60 cursor-pointer transition-colors ${expandedId === log.id ? 'bg-zinc-950' : ''}`}
                       onClick={() => toggleExpand(log.id)}
                     >
-                      <TableCell>
+                      <TableCell className="w-[36px] px-2 text-center">
                         {expandedId === log.id ? (
-                          <ChevronUp className="w-4 h-4 text-slate-400" />
+                          <ChevronUp className="size-3.5 text-zinc-400 mx-auto" />
                         ) : (
-                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                          <ChevronDown className="size-3.5 text-zinc-500 mx-auto" />
                         )}
                       </TableCell>
-                      <TableCell className="text-slate-300 text-sm whitespace-nowrap">
-                        {format(new Date(log.requested_at), "MMM d, yyyy HH:mm")}
+                      <TableCell className="font-mono text-[11px] text-zinc-400 whitespace-nowrap">
+                        {format(new Date(log.requested_at), "yyyy-MM-dd HH:mm")}
                       </TableCell>
-                      <TableCell className="font-medium text-slate-200">{log.agent_name}</TableCell>
-                      <TableCell className="text-slate-300">{log.vendor_name}</TableCell>
-                      <TableCell className="text-right font-medium text-slate-200">
+                      <TableCell className="font-mono text-xs font-medium text-white">
+                        {log.agent_name}
+                      </TableCell>
+                      <TableCell className="text-xs text-zinc-300">
+                        {log.vendor_name}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs font-semibold text-white">
                         ${log.amount_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-center">
@@ -105,79 +113,69 @@ export default function AuditLogPage() {
                       <TableCell>
                         {log.txid ? (
                           <a 
-                            href={`https://zcashblockexplorer.com/transactions/${log.txid}`}
+                            href={`https://testnet.zec.rocks/tx/${log.txid}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 text-xs truncate max-w-[120px]"
+                            className="font-mono text-[11px] text-zinc-300 hover:text-white underline decoration-zinc-700 underline-offset-2 inline-flex items-center gap-1"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {log.txid.substring(0, 8)}...{log.txid.substring(log.txid.length - 8)}
-                            <ExternalLink className="w-3 h-3" />
+                            <span>{log.txid.substring(0, 8)}...{log.txid.substring(log.txid.length - 6)}</span>
+                            <ExternalLink className="size-3 text-zinc-500" />
                           </a>
                         ) : (
-                          <span className="text-slate-600 text-xs">-</span>
+                          <span className="font-mono text-xs text-zinc-600">-</span>
                         )}
                       </TableCell>
                     </TableRow>
                     
                     {expandedId === log.id && (
-                      <TableRow className="border-slate-800/50 bg-slate-950/50 hover:bg-slate-950/50">
+                      <TableRow className="border-border bg-black hover:bg-black">
                         <TableCell colSpan={7} className="p-0">
-                          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 border-l-4 border-indigo-500 ml-4 my-4">
-                            <div>
-                              <h4 className="text-sm font-semibold text-slate-300 mb-3 uppercase tracking-wider">JEV Policy Analysis</h4>
-                              <div className="space-y-3">
+                          <div className="p-5 border-y border-zinc-800 grid grid-cols-1 md:grid-cols-2 gap-6 bg-zinc-950/80">
+                            <div className="space-y-3">
+                              <div className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 border-b border-zinc-800 pb-1.5">
+                                JEV POLICY VERDICT
+                              </div>
+                              <div className="grid grid-cols-2 gap-3 text-xs font-mono">
                                 <div>
-                                  <span className="text-xs text-slate-500 block mb-1">Risk Score</span>
-                                  <div className="flex items-center gap-3">
-                                    <span className={`text-lg font-bold ${log.jev_risk_score >= 3.5 ? 'text-red-400' : log.jev_risk_score >= 2 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                      {log.jev_risk_score.toFixed(1)} / 5.0
-                                    </span>
-                                  </div>
+                                  <span className="text-zinc-500 block text-[10px]">RISK SCORE</span>
+                                  <span className="text-white font-medium">{log.jev_risk_score.toFixed(1)} / 5.0</span>
                                 </div>
                                 <div>
-                                  <span className="text-xs text-slate-500 block mb-1">Route Decision</span>
-                                  <span className="text-sm text-slate-200 font-mono bg-slate-800 px-2 py-1 rounded">
-                                    {log.route_decision || "N/A"}
-                                  </span>
+                                  <span className="text-zinc-500 block text-[10px]">ROUTE DECISION</span>
+                                  <span className="text-zinc-300 uppercase">{log.route_decision || "N/A"}</span>
                                 </div>
-                                <div>
-                                  <span className="text-xs text-slate-500 block mb-1">Reasoning</span>
-                                  <p className="text-sm text-slate-300 bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 leading-relaxed">
-                                    {log.jev_reasoning || "Standard policy check completed."}
-                                  </p>
+                              </div>
+                              <div>
+                                <span className="text-zinc-500 block text-[10px] font-mono mb-1">EVALUATION SUMMARY</span>
+                                <div className="text-xs text-zinc-300 bg-black p-3 rounded border border-border leading-relaxed font-mono">
+                                  {log.jev_reasoning || "All 4 deterministic policy checks passed (Allowlist, Quote Tolerance, Budget, Schedule)."}
                                 </div>
                               </div>
                             </div>
                             
-                            <div>
-                              <h4 className="text-sm font-semibold text-slate-300 mb-3 uppercase tracking-wider">Transaction Details</h4>
-                              <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <span className="text-xs text-slate-500 block mb-1">Payment ID</span>
-                                    <span className="text-sm text-slate-300 font-mono text-xs truncate block">{log.id}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-xs text-slate-500 block mb-1">ZEC Amount</span>
-                                    <span className="text-sm text-slate-200">{log.amount_zec.toFixed(8)} ZEC</span>
+                            <div className="space-y-3">
+                              <div className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 border-b border-zinc-800 pb-1.5">
+                                TRANSACTION & MEMO
+                              </div>
+                              <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+                                <div>
+                                  <span className="text-zinc-500 block text-[10px]">PAYMENT ID</span>
+                                  <span className="text-zinc-400 text-[11px] truncate block">{log.id}</span>
+                                </div>
+                                <div>
+                                  <span className="text-zinc-500 block text-[10px]">ZEC SETTLED</span>
+                                  <span className="text-white font-semibold">{log.amount_zec.toFixed(6)} ZEC</span>
+                                </div>
+                              </div>
+                              {log.memo && (
+                                <div>
+                                  <span className="text-zinc-500 block text-[10px] font-mono mb-1">SHIELDED MEMO</span>
+                                  <div className="bg-black p-2.5 rounded border border-border font-mono text-[11px] text-zinc-300 break-all">
+                                    {log.memo}
                                   </div>
                                 </div>
-                                {log.business_purpose && (
-                                  <div>
-                                    <span className="text-xs text-slate-500 block mb-1">Business Purpose</span>
-                                    <span className="text-sm text-slate-300">{log.business_purpose}</span>
-                                  </div>
-                                )}
-                                {log.memo && (
-                                  <div>
-                                    <span className="text-xs text-slate-500 block mb-1">Encrypted Memo</span>
-                                    <div className="bg-slate-900 p-2 rounded border border-slate-800 font-mono text-xs text-slate-400 break-all">
-                                      {log.memo}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
+                              )}
                             </div>
                           </div>
                         </TableCell>

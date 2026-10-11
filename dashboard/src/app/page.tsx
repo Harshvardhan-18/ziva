@@ -4,7 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import { PaymentRequest, SummaryStats } from "@/lib/types";
 import { getStats } from "@/lib/api";
 import { PaymentCard } from "@/components/PaymentCard";
-import { Activity, ShieldAlert, CheckCircle2, Coins } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Bot, CheckSquare, Coins } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default function LiveFeedPage() {
       eventSource.onmessage = (event) => {
         try {
           const newPayment: PaymentRequest = JSON.parse(event.data);
-          setPayments((prev) => [...prev, newPayment].slice(-50)); // Keep last 50
+          setPayments((prev) => [...prev, newPayment].slice(-50));
         } catch {
           console.error("Failed to parse SSE data");
         }
@@ -40,9 +41,8 @@ export default function LiveFeedPage() {
       startFallback();
     }
 
-    // Fallback logic for demo purposes if backend isn't running
     function startFallback() {
-      const statuses: PaymentRequest["status"][] = ["auto_approved", "jev_escalated", "blocked"];
+      const statuses: PaymentRequest["status"][] = ["auto_approved", "jev_escalated", "blocked", "confirmed"];
       const vendors = ["AWS", "GitHub", "Vercel", "Stripe", "Twilio", "OpenAI", "Anthropic"];
       const agents = ["DevOps_Bot", "Marketing_AI", "Procurement_Agent", "HR_Automator"];
       
@@ -55,10 +55,10 @@ export default function LiveFeedPage() {
           agent_name: agents[Math.floor(Math.random() * agents.length)],
           vendor_name: vendors[Math.floor(Math.random() * vendors.length)],
           amount_usd: amount,
-          amount_zec: amount / 45, // roughly
+          amount_zec: amount / 45,
           status: randStatus,
           jev_risk_score: randStatus === "blocked" ? 4.5 + Math.random()*0.5 : randStatus === "jev_escalated" ? 3.0 + Math.random() : Math.random() * 2,
-          route_decision: randStatus === "auto_approved" ? "auto_approve" : randStatus === "blocked" ? "block" : "escalate_to_human",
+          route_decision: randStatus === "auto_approved" || randStatus === "confirmed" ? "auto_approve" : randStatus === "blocked" ? "block" : "escalate_to_human",
           requested_at: new Date().toISOString(),
         };
 
@@ -77,61 +77,110 @@ export default function LiveFeedPage() {
   }, [payments]);
 
   return (
-    <div className="max-w-5xl mx-auto flex flex-col h-full">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="max-w-5xl mx-auto flex flex-col h-full p-6 space-y-6">
+      {/* Header & Treasury Widget */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-100 mb-2">Live Activity Feed</h1>
-          <p className="text-slate-400">Real-time ZIVA private agent transactions.</p>
+          <h1 className="text-xl font-bold tracking-tight text-white">
+            Activity Feed
+          </h1>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Real-time autonomous spend execution settling over Zcash shielded transactions.
+          </p>
         </div>
         
-        <div className="bg-emerald-950 border border-emerald-800 rounded-xl p-4 min-w-[200px] shadow-sm">
-          <div className="flex items-center gap-2 mb-1">
-            <Coins className="text-emerald-400 w-5 h-5" />
-            <span className="text-sm text-emerald-300/80 font-medium uppercase tracking-wider">ZEC Balance</span>
+        <Card className="bg-zinc-950 border-border p-3 min-w-[220px]">
+          <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400 mb-1">
+            <span className="uppercase tracking-wider">TREASURY BALANCE</span>
+            <span className="border border-zinc-800 px-1 py-0.2 rounded text-[9px] text-zinc-300">SHIELDED</span>
           </div>
-          <div className="text-2xl font-bold text-emerald-100">
-            1,452.88 <span className="text-base text-emerald-400 font-normal">ZEC</span>
+          <div className="font-mono text-lg font-bold text-white tracking-tight">
+            1,452.88 <span className="text-xs font-normal text-zinc-400">ZEC</span>
           </div>
-        </div>
+          <div className="font-mono text-[10px] text-zinc-500">
+            ≈ $43,586.40 USD
+          </div>
+        </Card>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center gap-4">
-          <div className="p-3 bg-blue-500/10 rounded-lg">
-            <Activity className="w-6 h-6 text-blue-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-slate-200">{stats?.total_agents_active || 14}</div>
-            <div className="text-xs text-slate-500 uppercase font-medium">Active Agents</div>
-          </div>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center gap-4">
-          <div className="p-3 bg-amber-500/10 rounded-lg">
-            <ShieldAlert className="w-6 h-6 text-amber-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-slate-200">{stats?.pending_approvals_count || 2}</div>
-            <div className="text-xs text-slate-500 uppercase font-medium">Pending Approvals</div>
-          </div>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center gap-4">
-          <div className="p-3 bg-emerald-500/10 rounded-lg">
-            <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-slate-200">{stats?.total_zec_settled_today?.toFixed(2) || "145.20"} ZEC</div>
-            <div className="text-xs text-slate-500 uppercase font-medium">Settled Today</div>
-          </div>
-        </div>
+      {/* Summary Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Card className="bg-zinc-950 border-border">
+          <CardContent className="p-3.5 flex items-center justify-between">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+                ACTIVE FLEET
+              </div>
+              <div className="font-mono text-xl font-bold text-white mt-0.5">
+                {stats?.total_agents_active || 3}
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-0.5">
+                Cloud, Marketing, Contractors
+              </div>
+            </div>
+            <div className="size-8 rounded border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+              <Bot className="size-4 text-zinc-400" strokeWidth={1.75} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-zinc-950 border-border">
+          <CardContent className="p-3.5 flex items-center justify-between">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+                PENDING REVIEWS
+              </div>
+              <div className="font-mono text-xl font-bold text-white mt-0.5">
+                {stats?.pending_approvals_count || 2}
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-0.5">
+                Escalated by JEV policy checks
+              </div>
+            </div>
+            <div className="size-8 rounded border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+              <CheckSquare className="size-4 text-zinc-400" strokeWidth={1.75} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-zinc-950 border-border">
+          <CardContent className="p-3.5 flex items-center justify-between">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+                SETTLED TODAY
+              </div>
+              <div className="font-mono text-xl font-bold text-white mt-0.5">
+                {stats?.total_zec_settled_today?.toFixed(2) || "145.20"} <span className="text-xs font-normal text-zinc-400">ZEC</span>
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-0.5">
+                Shielded testnet transactions
+              </div>
+            </div>
+            <div className="size-8 rounded border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+              <Coins className="size-4 text-zinc-400" strokeWidth={1.75} />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="flex-1 overflow-hidden flex flex-col bg-slate-900/50 border border-slate-800 rounded-xl relative">
-        <div className="absolute top-0 left-0 w-full h-8 bg-gradient-to-b from-slate-900/50 to-transparent z-10 pointer-events-none" />
+      {/* Live Stream Panel */}
+      <div className="flex-1 min-h-0 flex flex-col bg-black border border-border rounded-lg overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-border bg-zinc-950 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="size-1.5 rounded-full bg-white animate-pulse" />
+            <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-300">
+              LIVE SETTLEMENT STREAM
+            </span>
+          </div>
+          <span className="font-mono text-[10px] text-zinc-500">
+            {payments.length} transactions captured
+          </span>
+        </div>
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {payments.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-slate-500 animate-pulse">
-              Waiting for agent activity...
+            <div className="h-48 flex items-center justify-center text-xs font-mono text-zinc-500">
+              Waiting for agent transaction requests...
             </div>
           ) : (
             payments.map((p) => (

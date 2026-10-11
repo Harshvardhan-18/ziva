@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Key, EyeOff, Eye, Lock, ShieldCheck, ExternalLink } from "lucide-react";
+import { Key, EyeOff, Eye, Lock, ExternalLink } from "lucide-react";
 import { PrivacyBanner } from "@/components/PrivacyBanner";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -11,144 +13,185 @@ export default function AuditorPage() {
   const [isRevealed, setIsRevealed] = useState(false);
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col h-full pb-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-100 mb-2">Selective Disclosure Demo</h1>
-        <p className="text-slate-400">Demonstrating Zcash shielded transactions with viewing keys.</p>
+    <div className="max-w-5xl mx-auto flex flex-col h-full p-6 space-y-6">
+      <div>
+        <h1 className="text-xl font-bold tracking-tight text-white">
+          Selective Disclosure Demo
+        </h1>
+        <p className="text-xs text-zinc-400 mt-0.5">
+          Counterparty confidentiality on-chain with selective auditability via Zcash viewing keys.
+        </p>
       </div>
 
       <PrivacyBanner />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
-        {/* Public View */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col shadow-lg relative">
-          <div className="bg-slate-950 p-4 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-300 font-medium">
-              <EyeOff className="w-5 h-5 text-slate-500" />
-              Public Observer View
-            </div>
-            <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded">Default</span>
-          </div>
-          
-          <div className="p-6 flex-1 flex flex-col">
-            <div className="bg-slate-950 rounded-lg p-4 border border-slate-800/50 mb-4">
-              <div className="flex items-center gap-2 mb-4 text-slate-400">
-                <Lock className="w-4 h-4 text-emerald-500" />
-                <span className="text-sm font-semibold uppercase tracking-wider text-emerald-500">Shielded Transaction</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Public Observer View */}
+        <Card className="bg-zinc-950 border-border flex flex-col justify-between">
+          <div>
+            <CardHeader className="p-4 border-b border-border bg-black">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <EyeOff className="size-4 text-zinc-500" strokeWidth={1.75} />
+                  <CardTitle className="font-mono text-xs uppercase tracking-wider text-zinc-300">
+                    Public Observer View
+                  </CardTitle>
+                </div>
+                <Badge variant="outline" className="font-mono text-[9px] border-zinc-800 text-zinc-500 uppercase">
+                  ON-CHAIN
+                </Badge>
               </div>
-              
-              <div className="space-y-4 text-sm">
-                <div>
-                  <span className="text-slate-500 block mb-1">TxID</span>
-                  <a href="#" className="text-indigo-400 hover:underline flex items-center gap-1">
-                    d9e8b7c6a5f4...3a2b1c0d9e8f
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                <div>
-                  <span className="text-slate-500 block mb-1">Sender</span>
-                  <div className="text-slate-600 font-mono bg-slate-900 p-2 rounded blur-[2px] select-none">
-                    ztestsapling1...redacted...
-                  </div>
-                </div>
-                <div>
-                  <span className="text-slate-500 block mb-1">Recipient</span>
-                  <div className="text-slate-600 font-mono bg-slate-900 p-2 rounded blur-[2px] select-none">
-                    ztestsapling1...redacted...
-                  </div>
-                </div>
-                <div>
-                  <span className="text-slate-500 block mb-1">Amount</span>
-                  <div className="text-slate-600 font-mono bg-slate-900 p-2 rounded blur-[2px] select-none">
-                    Hidden (0 ZEC public)
-                  </div>
-                </div>
-                <div>
-                  <span className="text-slate-500 block mb-1">Memo</span>
-                  <div className="text-slate-600 font-mono bg-slate-900 p-2 rounded blur-[2px] select-none break-all">
-                    f8a9b2...[encrypted blob]...4c3d
-                  </div>
-                </div>
-              </div>
-            </div>
+            </CardHeader>
             
-            <div className="mt-auto pt-4 text-center text-sm text-slate-500">
-              <p>To the public, this transaction reveals nothing useful — only the transaction hash and fee.</p>
-            </div>
-          </div>
-        </div>
+            <CardContent className="p-5 space-y-4 text-xs font-mono">
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-500 block uppercase">TRANSACTION HASH</span>
+                <a 
+                  href="https://testnet.zec.rocks/tx/be88b650ad803c69452f0fc34656509dd8813abad5ec9cf13218836615b58ba2" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-zinc-300 hover:text-white underline decoration-zinc-700 underline-offset-2 flex items-center gap-1 text-[11px]"
+                >
+                  be88b650ad803c69452f0fc34656509dd8813abad5ec9cf13218836615b58ba2
+                  <ExternalLink className="size-3 text-zinc-500" />
+                </a>
+              </div>
 
-        {/* Auditor View */}
-        <div className={`border rounded-xl overflow-hidden flex flex-col shadow-lg transition-all duration-700 relative ${isRevealed ? 'bg-slate-900 border-indigo-500/50 shadow-indigo-500/10' : 'bg-slate-900/50 border-slate-800'}`}>
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-500 block uppercase">SENDER ADDRESS</span>
+                <div className="bg-black p-2 rounded border border-border text-zinc-500 select-none text-[11px]">
+                  ••••••••••••••••••••••••••••••••••••••••••••••••
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-500 block uppercase">RECIPIENT ADDRESS</span>
+                <div className="bg-black p-2 rounded border border-border text-zinc-500 select-none text-[11px]">
+                  ••••••••••••••••••••••••••••••••••••••••••••••••
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-500 block uppercase">SETTLEMENT AMOUNT</span>
+                <div className="bg-black p-2 rounded border border-border text-zinc-500 select-none text-[11px]">
+                  CONFIDENTIAL (Shielded Orchard Pool)
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-500 block uppercase">MEMO CIPHERTEXT</span>
+                <div className="bg-black p-2 rounded border border-border text-zinc-600 text-[10px] break-all select-none">
+                  ae4b29c98f104d58a1200df...[512 bytes encrypted blob]...8a29b4e
+                </div>
+              </div>
+            </CardContent>
+          </div>
+
+          <div className="p-4 border-t border-border bg-black/60 text-[11px] text-zinc-500 leading-relaxed">
+            To an external blockchain observer, all counterparty identities, spend amounts, and memos are cryptographically concealed inside the shielded pool.
+          </div>
+        </Card>
+
+        {/* Authorized Auditor View */}
+        <Card className="bg-zinc-950 border-border flex flex-col justify-between relative overflow-hidden">
           {!isRevealed && (
-            <div className="absolute inset-0 z-10 backdrop-blur-[2px] bg-slate-950/40 flex flex-col items-center justify-center p-6 text-center">
-              <ShieldCheck className="w-16 h-16 text-slate-700 mb-4" />
-              <h3 className="text-lg font-bold text-slate-300 mb-2">Auditor Access Required</h3>
-              <p className="text-sm text-slate-500 mb-6">A viewing key is required to decrypt and view the details of this transaction.</p>
+            <div className="absolute inset-0 z-20 bg-black/90 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center space-y-4">
+              <div className="size-10 rounded border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+                <Key className="size-5 text-white" strokeWidth={1.75} />
+              </div>
+              <div className="space-y-1 max-w-sm">
+                <h3 className="font-mono text-sm font-semibold text-white uppercase tracking-wider">
+                  Auditor Viewing Key Required
+                </h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Viewing keys enable read-only selective disclosure for compliance and tax audits without exposing wallet spend authority.
+                </p>
+              </div>
               <Button 
                 onClick={() => setIsRevealed(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white group"
+                className="bg-white text-black hover:bg-zinc-200 font-mono text-xs h-8 px-4 font-medium"
               >
-                <Key className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform" />
-                Reveal to Auditor
+                <Key className="size-3.5 mr-1.5" />
+                Authorize Viewing Key
               </Button>
             </div>
           )}
 
-          <div className="bg-indigo-950/30 p-4 border-b border-indigo-900/30 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-indigo-300 font-medium">
-              <Eye className="w-5 h-5 text-indigo-400" />
-              Authorized Auditor View
-            </div>
-            <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded flex items-center gap-1">
-              <Key className="w-3 h-3" /> Viewing Key Active
-            </span>
-          </div>
-          
-          <div className="p-6 flex-1 flex flex-col">
-            <div className={`bg-slate-950 rounded-lg p-4 border border-slate-800 mb-4 transition-opacity duration-700 ${isRevealed ? 'opacity-100' : 'opacity-0'}`}>
-              <div className="flex items-center gap-2 mb-4">
-                <ShieldCheck className="w-4 h-4 text-indigo-400" />
-                <span className="text-sm font-semibold uppercase tracking-wider text-indigo-400">Decrypted Details</span>
+          <div>
+            <CardHeader className="p-4 border-b border-border bg-black">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Eye className="size-4 text-white" strokeWidth={1.75} />
+                  <CardTitle className="font-mono text-xs uppercase tracking-wider text-white">
+                    Authorized Auditor View
+                  </CardTitle>
+                </div>
+                <Badge className="font-mono text-[9px] bg-white text-black uppercase font-medium">
+                  DECRYPTED
+                </Badge>
               </div>
-              
-              <div className="space-y-4 text-sm">
-                <div>
-                  <span className="text-slate-500 block mb-1">TxID</span>
-                  <span className="text-slate-300 font-mono">d9e8b7c6a5f4...3a2b1c0d9e8f</span>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-slate-500 block mb-1">Sender Agent</span>
-                    <span className="text-slate-200 font-medium">ProcurementBot_Alpha</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block mb-1">Recipient Vendor</span>
-                    <span className="text-slate-200 font-medium">CloudServices Inc.</span>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-slate-500 block mb-1">Amount</span>
-                  <div className="text-xl font-bold text-emerald-400">
-                    $4,500.00 <span className="text-sm text-slate-400 font-normal">/ 102.5 ZEC</span>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-slate-500 block mb-1">Business Purpose (Memo)</span>
-                  <div className="text-slate-300 bg-slate-900 p-3 rounded border border-slate-800 leading-relaxed text-xs">
-                    &quot;Payment for Q3 cloud infrastructure usage. Approved by JEV Policy #42. Inv: INV-2026-8891.&quot;
-                  </div>
-                </div>
-              </div>
-            </div>
+            </CardHeader>
             
-            <div className={`mt-auto pt-4 text-center transition-opacity duration-700 ${isRevealed ? 'opacity-100' : 'opacity-0'}`}>
-              <Button variant="ghost" size="sm" onClick={() => setIsRevealed(false)} className="text-slate-500 hover:text-slate-300">
-                <Lock className="w-4 h-4 mr-2" /> Reset Demo
-              </Button>
-            </div>
+            <CardContent className="p-5 space-y-4 text-xs font-mono">
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-500 block uppercase">TRANSACTION HASH</span>
+                <span className="text-zinc-300 text-[11px] block truncate">
+                  be88b650ad803c69452f0fc34656509dd8813abad5ec9cf13218836615b58ba2
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-zinc-500 block uppercase">SENDER AGENT</span>
+                  <div className="text-white font-medium text-xs">
+                    DevOps_Fleet_Alpha
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-zinc-500 block uppercase">RECIPIENT VENDOR</span>
+                  <div className="text-white font-medium text-xs">
+                    CloudServices Inc.
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-500 block uppercase">DECRYPTED AMOUNT</span>
+                <div className="text-white font-bold text-base">
+                  $4,500.00 USD <span className="text-xs font-normal text-zinc-400">/ 102.5000 ZEC</span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-500 block uppercase">DECRYPTED MEMO & PURPOSE</span>
+                <div className="bg-black p-3 rounded border border-border text-zinc-300 text-xs leading-relaxed">
+                  &quot;Payment for Q3 cloud infrastructure usage. Approved by JEV Policy #42. Inv: INV-2026-8891.&quot;
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-zinc-500 block uppercase">POLICY ENGINE VALIDATION</span>
+                <div className="bg-black p-2 rounded border border-border text-[11px] text-zinc-400">
+                  Allowlist: OK • Quote Tolerance: 0% • Budget Remaining: $5,500.00 • Schedule: Valid
+                </div>
+              </div>
+            </CardContent>
           </div>
-        </div>
+
+          <div className="p-3 border-t border-border bg-black/60 flex items-center justify-between">
+            <span className="font-mono text-[10px] text-zinc-500">
+              VIEWING KEY: zxviewtestsapling1q8z...
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsRevealed(false)} 
+              className="border-border hover:bg-zinc-900 text-zinc-400 hover:text-white font-mono text-[10px] h-7 px-2.5"
+            >
+              <Lock className="size-3 mr-1" /> Reset Key
+            </Button>
+          </div>
+        </Card>
       </div>
     </div>
   );

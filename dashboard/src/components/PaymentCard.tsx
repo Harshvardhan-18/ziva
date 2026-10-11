@@ -2,19 +2,23 @@ import { PaymentRequest } from "@/lib/types";
 import { StatusBadge } from "./StatusBadge";
 import { JevScoreDisplay } from "./JevScoreDisplay";
 import { formatDistanceToNow } from "date-fns";
-import { Bot, Building2 } from "lucide-react";
+import { Bot, ArrowRight } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 export function PaymentCard({ payment }: { payment: PaymentRequest }) {
   return (
-    <div className="bg-slate-800/80 border border-slate-700 p-5 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-slate-700 p-2 rounded-full">
-            <Bot className="w-5 h-5 text-indigo-400" />
+    <Card className="bg-zinc-950 border-border hover:border-zinc-700 transition-colors rounded-lg p-4">
+      <div className="flex justify-between items-center mb-3">
+        <div className="flex items-center gap-2">
+          <div className="size-6 rounded border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+            <Bot className="size-3.5 text-zinc-300" strokeWidth={1.75} />
           </div>
           <div>
-            <h3 className="font-semibold text-slate-200">{payment.agent_name}</h3>
-            <span className="text-xs text-slate-400">
+            <span className="font-mono text-xs font-medium text-white">
+              {payment.agent_name}
+            </span>
+            <span className="font-mono text-[10px] text-zinc-500 ml-2">
               {formatDistanceToNow(new Date(payment.requested_at), { addSuffix: true })}
             </span>
           </div>
@@ -22,33 +26,41 @@ export function PaymentCard({ payment }: { payment: PaymentRequest }) {
         <StatusBadge status={payment.status} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="flex flex-col">
-          <span className="text-xs text-slate-500 mb-1 flex items-center gap-1">
-            <Building2 className="w-3 h-3" /> Vendor
-          </span>
-          <span className="text-sm font-medium text-slate-300">{payment.vendor_name}</span>
+      <div className="grid grid-cols-2 gap-4 my-2 text-xs">
+        <div>
+          <div className="font-mono text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+            <span>VENDOR</span>
+            <ArrowRight className="size-2.5 text-zinc-600" />
+          </div>
+          <div className="font-medium text-zinc-200 truncate">
+            {payment.vendor_name}
+          </div>
         </div>
-        <div className="flex flex-col items-end">
-          <span className="text-xs text-slate-500 mb-1">Amount</span>
-          <span className="text-sm font-bold text-slate-200">
+        <div className="text-right">
+          <div className="font-mono text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">
+            AMOUNT
+          </div>
+          <div className="font-mono font-semibold text-white">
             ${payment.amount_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-          </span>
-          <span className="text-xs text-slate-400">{payment.amount_zec.toFixed(4)} ZEC</span>
+          </div>
+          <div className="font-mono text-[10px] text-zinc-400">
+            {payment.amount_zec.toFixed(4)} ZEC
+          </div>
         </div>
       </div>
 
-      <div className="border-t border-slate-700 pt-4 flex items-center justify-between">
+      <Separator className="my-3 bg-zinc-800/80" />
+
+      <div className="flex items-center justify-between pt-0.5">
         <JevScoreDisplay score={payment.jev_risk_score} />
         {payment.route_decision && (
           <div className="text-right">
-            <span className="text-xs text-slate-500 block mb-1">Route Decision</span>
-            <span className="text-xs font-medium text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded-md">
+            <span className="font-mono text-[9px] uppercase tracking-wider text-zinc-400 border border-zinc-800 bg-zinc-900/60 px-2 py-0.5 rounded">
               {payment.route_decision.replace(/_/g, " ")}
             </span>
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

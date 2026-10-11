@@ -8,7 +8,7 @@ import { JevScoreDisplay } from "@/components/JevScoreDisplay";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertCircle, CheckCircle, XCircle } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,6 @@ export default function ApprovalsPage() {
       } else {
         await rejectPayment(selectedPayment.id);
       }
-      // Remove from list
       setApprovals(approvals.filter(p => p.id !== selectedPayment.id));
     } catch (e) {
       console.error(e);
@@ -53,46 +52,65 @@ export default function ApprovalsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto flex flex-col h-full pb-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-100 mb-2">Pending Approvals Queue</h1>
-        <p className="text-slate-400">Review transactions escalated by JEV policy checks.</p>
+    <div className="max-w-6xl mx-auto flex flex-col h-full p-6 space-y-6">
+      <div>
+        <h1 className="text-xl font-bold tracking-tight text-white">
+          Pending Approvals Queue
+        </h1>
+        <p className="text-xs text-zinc-400 mt-0.5">
+          Dual-authorization review for payments escalated by deterministic policy thresholds or JEV risk scores.
+        </p>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm flex-1">
-        <div className="overflow-x-auto">
+      <div className="border border-border bg-black rounded-lg overflow-hidden flex-1 flex flex-col">
+        <div className="overflow-x-auto flex-1">
           <Table>
-            <TableHeader className="bg-slate-950">
-              <TableRow className="border-slate-800 hover:bg-slate-950">
-                <TableHead className="text-slate-400 font-semibold w-[200px]">Agent & Vendor</TableHead>
-                <TableHead className="text-slate-400 font-semibold text-right">Amount</TableHead>
-                <TableHead className="text-slate-400 font-semibold text-center w-[150px]">Risk Score</TableHead>
-                <TableHead className="text-slate-400 font-semibold w-[250px]">JEV Reasoning</TableHead>
-                <TableHead className="text-slate-400 font-semibold text-right">Requested</TableHead>
-                <TableHead className="text-slate-400 font-semibold text-center w-[180px]">Actions</TableHead>
+            <TableHeader className="bg-zinc-950 border-b border-border">
+              <TableRow className="border-border hover:bg-zinc-950">
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+                  Agent & Vendor
+                </TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 text-right">
+                  Amount
+                </TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 text-center w-[130px]">
+                  Risk Score
+                </TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 max-w-[280px]">
+                  JEV Policy Reasoning
+                </TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 text-right w-[120px]">
+                  Requested
+                </TableHead>
+                <TableHead className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 text-center w-[160px]">
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {approvals.length === 0 ? (
-                <TableRow className="border-slate-800">
-                  <TableCell colSpan={6} className="text-center py-12 text-slate-500">
-                    No pending approvals. Queue is clear!
+                <TableRow className="border-border">
+                  <TableCell colSpan={6} className="text-center py-16 text-xs font-mono text-zinc-500">
+                    No transactions pending review. Queue is clear.
                   </TableCell>
                 </TableRow>
               ) : (
                 approvals.map((payment) => (
-                  <TableRow key={payment.id} className="border-slate-800/50 hover:bg-slate-800/50">
+                  <TableRow key={payment.id} className="border-border hover:bg-zinc-950/60">
                     <TableCell>
-                      <div className="font-semibold text-slate-200">{payment.agent_name}</div>
-                      <div className="text-xs text-slate-400 flex items-center gap-1 mt-1">
-                        <span className="truncate max-w-[150px]">→ {payment.vendor_name}</span>
+                      <div className="font-mono text-xs font-semibold text-white">
+                        {payment.agent_name}
+                      </div>
+                      <div className="text-[11px] text-zinc-400 flex items-center gap-1 mt-0.5">
+                        <ArrowRight className="size-2.5 text-zinc-600" />
+                        <span className="truncate max-w-[160px]">{payment.vendor_name}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="font-bold text-slate-200">
+                      <div className="font-mono text-xs font-semibold text-white">
                         ${payment.amount_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </div>
-                      <div className="text-xs text-slate-400">
+                      <div className="font-mono text-[10px] text-zinc-500">
                         {payment.amount_zec.toFixed(4)} ZEC
                       </div>
                     </TableCell>
@@ -101,32 +119,31 @@ export default function ApprovalsPage() {
                         <JevScoreDisplay score={payment.jev_risk_score} />
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-md text-xs text-amber-200/90 line-clamp-3">
-                        <AlertCircle className="w-3 h-3 inline mr-1 text-amber-500" />
-                        {payment.jev_reasoning || "Escalated for manual review due to policy limits."}
+                    <TableCell className="max-w-[280px]">
+                      <div className="text-xs text-zinc-300 border border-zinc-800 bg-zinc-950 p-2 rounded leading-relaxed line-clamp-2">
+                        {payment.jev_reasoning || "Escalated for human co-signing due to anomalous amount or risk tier."}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right text-sm text-slate-400">
+                    <TableCell className="text-right font-mono text-[11px] text-zinc-500">
                       {formatDistanceToNow(new Date(payment.requested_at), { addSuffix: true })}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-1.5">
                         <Button 
                           size="sm" 
-                          variant="outline" 
-                          className="bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-400 h-8 px-3"
+                          variant="default"
+                          className="bg-white text-black hover:bg-zinc-200 font-mono text-[11px] h-7 px-2.5 rounded"
                           onClick={() => handleActionClick(payment, "approve")}
                         >
-                          <CheckCircle className="w-4 h-4 mr-1" /> Approve
+                          Approve
                         </Button>
                         <Button 
                           size="sm" 
                           variant="outline"
-                          className="bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400 h-8 px-3"
+                          className="border-zinc-800 hover:bg-zinc-900 text-zinc-400 hover:text-white font-mono text-[11px] h-7 px-2.5 rounded"
                           onClick={() => handleActionClick(payment, "reject")}
                         >
-                          <XCircle className="w-4 h-4 mr-1" /> Reject
+                          Reject
                         </Button>
                       </div>
                     </TableCell>
@@ -139,52 +156,54 @@ export default function ApprovalsPage() {
       </div>
 
       <Dialog open={!!selectedPayment} onOpenChange={(open) => !open && !isProcessing && setSelectedPayment(null)}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-200">
+        <DialogContent className="bg-zinc-950 border-border text-white sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm {actionType === "approve" ? "Approval" : "Rejection"}</DialogTitle>
-            <DialogDescription className="text-slate-400">
-              Are you sure you want to {actionType} this payment request?
+            <DialogTitle className="font-mono text-sm uppercase tracking-wider text-white">
+              Confirm {actionType === "approve" ? "Execution" : "Rejection"}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-zinc-400">
+              {actionType === "approve"
+                ? "Authorizing will broadcast the transaction to Zcash testnet for shielded settlement."
+                : "Rejecting will terminate this spend request and record a denial in the audit log."}
             </DialogDescription>
           </DialogHeader>
           
           {selectedPayment && (
-            <div className="bg-slate-950 p-4 rounded-lg my-4 border border-slate-800">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-slate-500 block text-xs mb-1">Agent</span>
-                  <span className="font-medium text-slate-300">{selectedPayment.agent_name}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-xs mb-1">Vendor</span>
-                  <span className="font-medium text-slate-300">{selectedPayment.vendor_name}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-xs mb-1">Amount</span>
-                  <span className="font-bold text-slate-200">${selectedPayment.amount_usd.toFixed(2)}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-xs mb-1">Risk Score</span>
-                  <span className="font-medium text-amber-400">{selectedPayment.jev_risk_score}/5.0</span>
-                </div>
+            <div className="border border-border bg-black p-3.5 rounded my-2 font-mono text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-zinc-500">AGENT</span>
+                <span className="text-white">{selectedPayment.agent_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">VENDOR</span>
+                <span className="text-white">{selectedPayment.vendor_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">AMOUNT</span>
+                <span className="text-white font-semibold">${selectedPayment.amount_usd.toFixed(2)} ({selectedPayment.amount_zec.toFixed(4)} ZEC)</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">JEV SCORE</span>
+                <span className="text-zinc-300">{selectedPayment.jev_risk_score.toFixed(1)} / 5.0</span>
               </div>
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button 
               variant="outline" 
               onClick={() => setSelectedPayment(null)}
               disabled={isProcessing}
-              className="border-slate-700 hover:bg-slate-800 text-slate-300"
+              className="border-zinc-800 hover:bg-zinc-900 text-zinc-300 font-mono text-xs h-8"
             >
               Cancel
             </Button>
             <Button 
-              className={actionType === "approve" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}
+              className={actionType === "approve" ? "bg-white text-black hover:bg-zinc-200 font-mono text-xs h-8" : "bg-zinc-900 text-white hover:bg-zinc-800 border border-zinc-700 font-mono text-xs h-8"}
               onClick={confirmAction}
               disabled={isProcessing}
             >
-              {isProcessing ? "Processing..." : `Confirm ${actionType}`}
+              {isProcessing ? "Broadcasting..." : `Confirm ${actionType === "approve" ? "Approval" : "Rejection"}`}
             </Button>
           </DialogFooter>
         </DialogContent>
