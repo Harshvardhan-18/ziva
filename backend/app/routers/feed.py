@@ -28,12 +28,7 @@ async def payment_event_stream():
     Polls every 3 seconds for new records created after the connection opened.
     Streams each new payment as a JSON event.
     """
-    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-    import os
-
-    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://ziva:ziva_dev_password@localhost:5432/ziva")
-    engine = create_async_engine(DATABASE_URL, echo=False)
-    AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    from app.database import AsyncSessionLocal
 
     since = datetime.now(timezone.utc)
     seen_ids: set[str] = set()
@@ -75,7 +70,7 @@ async def payment_event_stream():
                 yield ": keepalive\n\n"
 
     finally:
-        await engine.dispose()
+        pass
 
 
 @router.get("/live")

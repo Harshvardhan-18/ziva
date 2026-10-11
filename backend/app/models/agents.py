@@ -1,6 +1,5 @@
 from datetime import datetime, UTC
-from sqlalchemy import Column, String, Float, DateTime
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import Column, String, Float, DateTime, JSON
 from app.database import Base
 import uuid
 
@@ -13,5 +12,5 @@ class Agent(Base):
     budget_usd = Column(Float, nullable=False)
     budget_spent_usd = Column(Float, default=0.0)
     budget_period = Column(String, nullable=False) # e.g. "monthly"
-    approved_vendors = Column(ARRAY(String), default=[])
+    approved_vendors = Column(JSON, default=list)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))

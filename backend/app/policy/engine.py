@@ -47,7 +47,8 @@ def check_policy(
     else:
         payment_date = request.payment_date
 
-    if payment_date < datetime.now(timezone.utc):
-        return PolicyResult(passed=False, fail_reason="Payment date cannot be in the past")
+    from datetime import timedelta
+    if payment_date < datetime.now(timezone.utc) - timedelta(minutes=5):
+        return PolicyResult(passed=False, fail_reason="Payment date cannot be more than 5 minutes in the past")
 
     return PolicyResult(passed=True)

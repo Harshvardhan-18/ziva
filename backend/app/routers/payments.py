@@ -170,10 +170,11 @@ async def execute_payment(payment_id: str):
 
 
 @router.get("/", response_model=List[PaymentRequestResponse])
-async def list_payments(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(PaymentRequest).order_by(PaymentRequest.created_at.desc())
-    )
+async def list_payments(status: str = None, db: AsyncSession = Depends(get_db)):
+    query = select(PaymentRequest).order_by(PaymentRequest.created_at.desc())
+    if status:
+        query = query.where(PaymentRequest.status == status)
+    result = await db.execute(query)
     return result.scalars().all()
 
 

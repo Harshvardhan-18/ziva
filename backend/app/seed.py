@@ -78,11 +78,13 @@ DEMO_AGENTS = [
 ]
 
 
-async def seed():
-    engine = create_async_engine(DATABASE_URL, echo=False)
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+from app.database import engine, AsyncSessionLocal, Base
 
-    async with async_session() as session:
+async def seed():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with AsyncSessionLocal() as session:
         # Insert vendors
         for vd in DEMO_VENDORS:
             vendor = Vendor(

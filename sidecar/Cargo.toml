@@ -5,11 +5,9 @@ edition = "2021"
 description = "ZIVA Rust sidecar — Axum HTTP wrapper around zingolib for shielded Zcash testnet transactions"
 
 [dependencies]
-# Zcash wallet library — pinned to v6.0.0 tag
-# NOTE: zingolib requires Rust edition 2024 internally; we set our package to 2021
-# but zingolib's own code uses 2024. Requires rustc >= 1.85.
-zingolib   = { git = "https://github.com/zingolabs/zingolib.git", tag = "zingolib_v6.0.0" }
-zingoconfig = { git = "https://github.com/zingolabs/zingolib.git", tag = "zingolib_v6.0.0" }
+# Zcash wallet library from local workspace
+zingolib = { path = "../../zingolib/zingolib" }
+pepper-sync = { path = "../../zingolib/pepper-sync" }
 
 # HTTP server
 axum       = { version = "0.7", features = ["json", "http1", "tokio"] }
@@ -27,7 +25,14 @@ uuid       = { version = "1", features = ["v4"] }
 tracing    = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 dotenvy    = "0.15"
+http       = "1"
 
-# Build prerequisites:
-# Linux/Mac: protobuf-compiler, clang, libclang-dev
-# Windows:   scoop install protobuf  OR  choco install protoc
+# Protocol types matching zingolib v6.0.0
+zcash_address = "0.13.0"
+zcash_client_backend = { version = "0.24.0-rc.7", features = ["orchard", "transparent-inputs"] }
+zcash_protocol = "0.10.4"
+zip32 = "0.2.0"
+
+[patch.crates-io]
+# Required for NU6.3 / Ironwood proto fields used by pepper-sync
+lightwallet-protocol = { git = "https://github.com/zingolabs/lightwallet-protocol-rust", rev = "9bdfdc77eb283f2a3d26c27100cc2ac90148cd93" }

@@ -1,25 +1,20 @@
 //! ZivaWallet: thin wrapper around zingolib v6 LightClient for ZIVA sidecar.
-//!
-//! zingolib v6 uses a two-step propose → execute pattern for sending:
-//!   1. `client.propose_send(TransactionRequest, account_id)` → stored proposal
-//!   2. `client.execute_proposal()` → Vec<TransmitReport> (one per step)
-//!
-//! The wallet must be synced before balances are accurate and before
-//! proposals can be built. Sync is async and can run in background.
 
+use std::num::NonZeroU32;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, anyhow};
 use tracing::{debug, info, warn};
 
+use pepper_sync::config::{PerformanceLevel, SyncConfig, TransparentAddressDiscovery};
 use zingolib::{
-    config::{ChainType, ClientConfig, WalletConfig, lib_birthday},
+    config::{ChainType, ClientConfig, DEFAULT_WALLET_NAME, WalletConfig, lib_birthday},
     lightclient::LightClient,
-    wallet::WalletBase,
+    wallet::WalletSettings,
 };
 
 /// The testnet lightwalletd endpoint.
-const TESTNET_LIGHTWALLETD: &str = "https://testnet.zec.rocks:443";
+pub const TESTNET_LIGHTWALLETD: &str = "https://testnet.zec.rocks:443";
 
 /// Wallet data directory inside the sidecar's storage.
 const WALLET_DIR: &str = "/app/wallet";
@@ -33,13 +28,9 @@ pub struct ZivaWallet {
 
 impl ZivaWallet {
     /// Create or restore a testnet wallet.
-    ///
-    /// If `seed_phrase` is `Some`, the wallet is restored from that mnemonic
-    /// at the testnet Library Birthday (= earliest safe height for a fresh wallet).
-    /// If `None`, a brand-new wallet is generated.
     pub async fn new(seed_phrase: Option<String>) -> Result<Self> {
-        // Ensure rustls provider is registered (required for TLS indexer URIs).
-        zingo_netutils::ensure_default_crypto_provider();
+        // Ensure crypto provider is initialized
+        zingolib::netutils::ensure_default_crypto_provider();
 
         let server_uri: http::Uri = TESTNET_LIGHTWALLETD
             .parse()
@@ -50,29 +41,46 @@ impl ZivaWallet {
         );
         std::fs::create_dir_all(&wallet_dir).context("create wallet directory")?;
 
-        let wallet_config = match seed_phrase {
-            Some(phrase) => {
-                info!("Restoring wallet from seed phrase (testnet)");
-                WalletConfig::MnemonicPhrase {
-                    phrase,
-                    birthday: lib_birthday(ChainType::Testnet),
-                }
+        let wallet_file = wallet_dir.join(DEFAULT_WALLET_NAME);
+        let no_of_accounts = NonZeroU32::try_from(1).expect("valid account count");
+        let wallet_settings = WalletSettings {
+            sync_config: SyncConfig {
+                transparent_address_discovery: TransparentAddressDiscovery::default(),
+                performance_level: PerformanceLevel::High,
+                shutdown_on_completion: false,
+            },
+            min_confirmations: NonZeroU32::try_from(1).unwrap(),
+        };
+
+        let birthday = lib_birthday(ChainType::Testnet);
+
+        let wallet_config = if let Some(phrase) = seed_phrase {
+            info!("Restoring wallet from seed phrase (testnet)");
+            WalletConfig::MnemonicPhrase {
+                mnemonic_phrase: phrase,
+                no_of_accounts,
+                birthday,
+                wallet_settings,
             }
-            None => {
-                info!("Creating new testnet wallet");
-                WalletConfig::NewSeed {
-                    chain_height: lib_birthday(ChainType::Testnet),
-                }
+        } else if wallet_file.exists() {
+            info!("Reading existing wallet from disk");
+            WalletConfig::Read
+        } else {
+            info!("Creating new testnet wallet");
+            WalletConfig::NewSeed {
+                no_of_accounts,
+                chain_height: birthday,
+                wallet_settings,
             }
         };
 
         let config = ClientConfig::builder()
-            .data_dir(wallet_dir)
-            .chain_type(ChainType::Testnet)
-            .wallet_config(wallet_config)
-            .indexer_uri(server_uri)
+            .set_chain_type(ChainType::Testnet)
+            .set_wallet_dir(wallet_dir)
+            .set_wallet_config(wallet_config)
+            .set_indexer_uri(server_uri)
             .build()
-            .context("build ClientConfig")?;
+            .map_err(|e| anyhow!("build ClientConfig failed: {e}"))?;
 
         let client = LightClient::new(config, false)
             .await
@@ -81,56 +89,66 @@ impl ZivaWallet {
         Ok(Self { client })
     }
 
-    /// Trigger a background sync and wait for it to complete.
-    pub async fn sync(&mut self) -> Result<()> {
-        use pepper_sync::wallet::SyncMode;
-
-        debug!("Starting wallet sync...");
-        self.client
-            .start_sync(SyncMode::Normal)
-            .await
-            .map_err(|e| anyhow!("sync start failed: {e:?}"))?;
-
-        // Poll until sync is complete (timeout: 120 s)
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
-        loop {
-            use pepper_sync::wallet::SyncMode;
-            let mode = self.client.sync_mode();
-            if mode == SyncMode::NotRunning {
-                break;
+    /// Trigger sync and wait for completion.
+    pub async fn do_sync(&mut self) -> Result<()> {
+        debug!("Triggering wallet sync...");
+        match self.client.sync().await {
+            Ok(()) => {}
+            Err(zingolib::lightclient::error::LightClientError::SyncModeError(
+                pepper_sync::error::SyncModeError::SyncAlreadyRunning,
+            )) => {
+                debug!("Sync task already in progress");
             }
-            if std::time::Instant::now() > deadline {
-                warn!("Sync timed out after 120 s — balance may be stale");
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            Err(e) => return Err(anyhow!("sync failed: {e:?}")),
         }
-        info!("Wallet sync complete");
+
+        // Wait until sync is finished or timeout (120 s)
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        while self.client.sync_mode() != pepper_sync::wallet::SyncMode::NotRunning {
+            if std::time::Instant::now() > deadline {
+                warn!("Sync timed out after 120s");
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+        info!("Wallet sync finished");
         Ok(())
     }
 
-    /// Return the wallet's current shielded (Orchard + Sapling) balance in zatoshis.
-    pub async fn balance_zat(&self) -> Result<u64> {
-        let wallet = self.client.wallet().read().await;
-        let balance = wallet
-            .spendable_balance_of_account(ACCOUNT_ZERO)
-            .map_err(|e| anyhow!("balance error: {e:?}"))?;
-        // balance is in zatoshis (u64)
-        Ok(u64::from(balance))
+    /// Return the wallet's spendable confirmed balance in zatoshis.
+    pub async fn get_balance(&mut self) -> Result<u64> {
+        let bal = self
+            .client
+            .account_balance(ACCOUNT_ZERO)
+            .await
+            .map_err(|e| anyhow!("account_balance failed: {e:?}"))?;
+
+        use zcash_protocol::value::Zatoshis;
+        let ironwood = bal.confirmed_ironwood_balance.unwrap_or(Zatoshis::ZERO);
+        let orchard = bal.confirmed_orchard_balance.unwrap_or(Zatoshis::ZERO);
+        let sapling = bal.confirmed_sapling_balance.unwrap_or(Zatoshis::ZERO);
+        let transparent = bal.confirmed_transparent_balance.unwrap_or(Zatoshis::ZERO);
+
+        let total: u64 = u64::from(ironwood)
+            + u64::from(orchard)
+            + u64::from(sapling)
+            + u64::from(transparent);
+
+        Ok(total)
     }
 
-    /// Return the wallet's primary unified address as a string.
-    pub async fn address(&self) -> Result<String> {
-        let wallet = self.client.wallet().read().await;
-        let addr = wallet
-            .unified_address(ACCOUNT_ZERO)
-            .map_err(|e| anyhow!("address error: {e:?}"))?;
-        Ok(addr.encode(&ChainType::Testnet))
+    /// Return the primary encoded unified address.
+    pub async fn get_address(&mut self) -> Result<String> {
+        let addresses = self.client.unified_addresses_json().await;
+        if let Some(first) = addresses.members().next() {
+            if let Some(encoded) = first["encoded_address"].as_str() {
+                return Ok(encoded.to_string());
+            }
+        }
+        Err(anyhow!("No address found in wallet"))
     }
 
-    /// Build and broadcast a shielded transaction.
-    /// Returns the txid hex string on success.
-    /// Amount is in zatoshis (1 ZEC = 100_000_000 zatoshis).
+    /// Build and broadcast a shielded transaction using quick_send_reported.
     pub async fn send(
         &mut self,
         to_address: &str,
@@ -138,8 +156,8 @@ impl ZivaWallet {
         memo: Option<&str>,
     ) -> Result<String> {
         use zcash_address::ZcashAddress;
-        use zcash_client_backend::zip321::{Payment, TransactionRequest};
         use zcash_protocol::{memo::MemoBytes, value::Zatoshis};
+        use zingolib::data::receivers::{Receiver, transaction_request_from_receivers};
 
         let recipient: ZcashAddress = to_address
             .parse()
@@ -153,34 +171,23 @@ impl ZivaWallet {
             .transpose()
             .map_err(|e| anyhow!("invalid memo: {e}"))?;
 
-        let payment = Payment::new(recipient, amount, memo_bytes, None, None, vec![])
-            .map_err(|e| anyhow!("invalid payment: {e}"))?;
-
-        let request = TransactionRequest::new(vec![payment])
+        let receiver = Receiver {
+            recipient_address: recipient,
+            amount,
+            memo: memo_bytes,
+        };
+        let request = transaction_request_from_receivers(vec![receiver])
             .map_err(|e| anyhow!("invalid TransactionRequest: {e}"))?;
 
-        // Step 1: Propose
-        info!("Proposing send of {amount_zat} zat to {to_address}");
-        self.client
-            .propose_send(request, ACCOUNT_ZERO)
-            .await
-            .map_err(|e| anyhow!("propose_send failed: {e:?}"))?;
-
-        // Step 2: Execute (build + transmit)
-        info!("Executing proposal...");
+        info!("Sending {amount_zat} zat to {to_address}...");
         let reports = self
             .client
-            .execute_proposal()
+            .quick_send_reported(request, ACCOUNT_ZERO, true)
             .await
-            .map_err(|e| anyhow!("execute_proposal failed: {e:?}"))?;
+            .map_err(|e| anyhow!("quick_send_reported failed: {e:?}"))?;
 
-        // Return the first txid (simple sends always produce exactly one)
-        let txid = reports
-            .first()
-            .map(|r| r.txid.to_string())
-            .ok_or_else(|| anyhow!("execute_proposal returned no transactions"))?;
-
-        info!("Transaction broadcast: txid={txid}");
+        let txid = reports.first().txid.to_string();
+        info!("Transaction broadcasted successfully: txid={txid}");
         Ok(txid)
     }
 }

@@ -56,28 +56,43 @@ def generate_payment_node(state: AgentState) -> AgentState:
         return {**state, "error": "No approved vendors available"}
 
     # Pick a vendor — weight toward known vendors, occasionally pick "new" ones
-    vendor = random.choice(state["approved_vendors"])
+    raw_vendor = random.choice(state["approved_vendors"])
+    if isinstance(raw_vendor, str):
+        vendor = {
+            "id": raw_vendor,
+            "name": raw_vendor.replace("v-", "").upper(),
+            "category": "services",
+            "base_price_usd": 450.0,
+        }
+    else:
+        vendor = raw_vendor
 
     # Generate a realistic invoice amount near the vendor's base price
     base_price = vendor.get("base_price_usd", 500.0)
-    variation = random.uniform(0.95, 1.05)  # ±5% natural invoice variation
+    variation = random.uniform(0.98, 1.02)  # ±2% natural invoice variation
     amount = round(base_price * variation, 2)
 
-    # LLM generates a realistic business context / memo
-    llm = _llm()
-    response = llm.invoke([
-        SystemMessage(content=(
-            f"You are the {state['agent_name']} for a tech company. "
-            f"Your mandate: {state['mandate']}. "
-            "Write a concise one-sentence business justification for this payment. "
-            "Be specific and realistic. No JSON, just the sentence."
-        )),
-        HumanMessage(content=(
-            f"Payment to: {vendor['name']} ({vendor['category']}) "
-            f"Amount: ${amount:.2f} USD"
-        )),
-    ])
-    memo = response.content.strip()
+    # LLM generates a realistic business context / memo (or fallback if no key)
+    if os.getenv("OPENAI_API_KEY"):
+        try:
+            llm = _llm()
+            response = llm.invoke([
+                SystemMessage(content=(
+                    f"You are the {state['agent_name']} for a tech company. "
+                    f"Your mandate: {state['mandate']}. "
+                    "Write a concise one-sentence business justification for this payment. "
+                    "Be specific and realistic. No JSON, just the sentence."
+                )),
+                HumanMessage(content=(
+                    f"Payment to: {vendor['name']} ({vendor.get('category', 'services')}) "
+                    f"Amount: ${amount:.2f} USD"
+                )),
+            ])
+            memo = response.content.strip()
+        except Exception:
+            memo = f"Authorized commercial payment to {vendor['name']} for approved {vendor.get('category', 'services')} services."
+    else:
+        memo = f"Authorized commercial payment to {vendor['name']} for approved {vendor.get('category', 'services')} services."
 
     # Payment date: within the next 1-3 business days
     payment_date = datetime.now(timezone.utc) + timedelta(days=random.randint(1, 3))
