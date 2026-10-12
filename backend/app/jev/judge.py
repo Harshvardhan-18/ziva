@@ -82,12 +82,38 @@ def evaluate_payment(
     # If no API key configured, use calibrated heuristic model for offline demo
     if not os.getenv("AI_GATEWAY_API_KEY") and not os.getenv("TYPESAFE_API_KEY"):
         logger.info("Jev API key not configured; evaluating with calibrated behavioral model")
+        import hashlib
+        seed_hash = int(hashlib.md5(f"{vendor_name}:{amount_usd}".encode()).hexdigest()[:4], 16) / 65535.0
+
         if vendor_category == "unknown" or "unknown" in vendor_name.lower():
-            return JevResult(anomaly_noul=0.92, risk_score=4.8, route="block", route_confidence=0.95)
+            score = 4.10 + (seed_hash * 0.80)  # 4.10 – 4.90
+            noul = 0.84 + (seed_hash * 0.12)
+            return JevResult(
+                anomaly_noul=round(noul, 2),
+                risk_score=round(score, 2),
+                route="block",
+                route_confidence=round(0.90 + (seed_hash * 0.08), 2),
+            )
         elif vendor_is_new or amount_usd > 3000.0 or vendor_category in ["consulting", "legal"]:
-            return JevResult(anomaly_noul=0.74, risk_score=3.7, route="escalate_to_human", route_confidence=0.88)
+            amount_ratio = min(amount_usd / 12000.0, 1.0)
+            score = 2.45 + (amount_ratio * 0.95) + (seed_hash * 0.50)  # 2.45 – 3.90
+            noul = 0.52 + (amount_ratio * 0.28) + (seed_hash * 0.14)
+            return JevResult(
+                anomaly_noul=round(min(noul, 0.96), 2),
+                risk_score=round(min(score, 3.95), 2),
+                route="escalate_to_human",
+                route_confidence=round(0.82 + (seed_hash * 0.12), 2),
+            )
         else:
-            return JevResult(anomaly_noul=0.08, risk_score=1.2, route="auto_approve", route_confidence=0.96)
+            amount_ratio = min(amount_usd / 3000.0, 1.0)
+            score = 0.35 + (amount_ratio * 0.85) + (seed_hash * 0.90)  # 0.35 – 2.10
+            noul = 0.02 + (amount_ratio * 0.07) + (seed_hash * 0.06)
+            return JevResult(
+                anomaly_noul=round(noul, 2),
+                risk_score=round(score, 2),
+                route="auto_approve",
+                route_confidence=round(0.92 + (seed_hash * 0.06), 2),
+            )
 
     try:
         with _build_client() as client:

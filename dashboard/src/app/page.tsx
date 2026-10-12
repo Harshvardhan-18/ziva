@@ -69,22 +69,47 @@ export default function LiveFeedPage() {
       if (fallbackInterval) return;
 
       const statuses: PaymentRequest["status"][] = ["auto_approved", "jev_escalated", "blocked", "confirmed"];
-      const vendors = ["AWS", "GitHub", "Vercel", "Stripe", "Twilio", "OpenAI", "Anthropic"];
-      const agents = ["DevOps_Bot", "Marketing_AI", "Procurement_Agent", "HR_Automator"];
-      
+      const vendors = ["AWS", "GitHub", "Vercel", "Stripe", "Twilio", "OpenAI", "Anthropic", "Cloudflare", "Fastly", "HubSpot"];
+      const agents = ["Cloud Infra Agent", "Marketing Tools Agent", "Contractor Payments Agent"];
+
+      // Realistic score ranges per status with full decimal variation
+      const scoreForStatus = (s: PaymentRequest["status"]): number => {
+        switch (s) {
+          case "confirmed":
+          case "auto_approved":
+            // Low risk: 0.3 – 2.4, spread across the range
+            return +(0.3 + Math.random() * 2.1).toFixed(2);
+          case "jev_escalated":
+            // Elevated: 2.5 – 3.9
+            return +(2.5 + Math.random() * 1.4).toFixed(2);
+          case "blocked":
+            // High risk: 3.8 – 5.0
+            return +(3.8 + Math.random() * 1.2).toFixed(2);
+          default:
+            return +(Math.random() * 5).toFixed(2);
+        }
+      };
+
       fallbackInterval = setInterval(() => {
         const randStatus = statuses[Math.floor(Math.random() * statuses.length)];
-        const amount = Math.random() * 500 + 10;
-        
+        const amount = +(10 + Math.random() * 4990).toFixed(2); // $10 – $5000
+        const riskScore = scoreForStatus(randStatus);
+
         const newPayment: PaymentRequest = {
           id: `sim_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           agent_name: agents[Math.floor(Math.random() * agents.length)],
           vendor_name: vendors[Math.floor(Math.random() * vendors.length)],
           amount_usd: amount,
-          amount_zec: amount / 45,
+          amount_zec: +(amount / 45).toFixed(4),
           status: randStatus,
-          jev_risk_score: randStatus === "blocked" ? 4.5 + Math.random()*0.5 : randStatus === "jev_escalated" ? 3.0 + Math.random() : Math.random() * 2,
-          route_decision: randStatus === "auto_approved" || randStatus === "confirmed" ? "auto_approve" : randStatus === "blocked" ? "block" : "escalate_to_human",
+          jev_risk_score: riskScore,
+          anomaly_probability: +(Math.random()).toFixed(2),
+          route_decision:
+            randStatus === "auto_approved" || randStatus === "confirmed"
+              ? "auto_approve"
+              : randStatus === "blocked"
+              ? "block"
+              : "escalate_to_human",
           requested_at: new Date().toISOString(),
         };
 
