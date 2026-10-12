@@ -78,6 +78,84 @@ DEMO_AGENTS = [
 ]
 
 
+from app.models.payment_requests import PaymentRequest
+from datetime import datetime, timezone
+
+DEMO_PAYMENTS = [
+    {
+        "id": "pay-esc-1",
+        "agent_id": "a-contractor",
+        "vendor_id": "v-datainsights",
+        "amount_usd": 12000.0,
+        "amount_zat": 30000000000,
+        "quote_amount_usd": 12000.0,
+        "tolerance_pct": 0.0,
+        "status": "jev_escalated",
+        "jev_anomaly_noul": 0.82,
+        "jev_risk_score": 3.8,
+        "jev_route": "escalate_to_human",
+        "policy_fail_reason": "New vendor not in agent approved list; JEV risk tier 4",
+        "created_at": datetime.now(timezone.utc),
+    },
+    {
+        "id": "pay-esc-2",
+        "agent_id": "a-contractor",
+        "vendor_id": "v-unknown",
+        "amount_usd": 9500.0,
+        "amount_zat": 23750000000,
+        "quote_amount_usd": 9500.0,
+        "tolerance_pct": 0.0,
+        "status": "jev_escalated",
+        "jev_anomaly_noul": 0.91,
+        "jev_risk_score": 4.2,
+        "jev_route": "escalate_to_human",
+        "policy_fail_reason": "Unrecognized contractor identity; anomaly probability 0.91",
+        "created_at": datetime.now(timezone.utc),
+    },
+    {
+        "id": "pay-conf-1",
+        "agent_id": "a-cloud-infra",
+        "vendor_id": "v-aws",
+        "amount_usd": 2487.0,
+        "amount_zat": 6218000000,
+        "quote_amount_usd": 2487.0,
+        "tolerance_pct": 0.0,
+        "status": "confirmed",
+        "jev_anomaly_noul": 0.04,
+        "jev_risk_score": 1.1,
+        "jev_route": "auto_approve",
+        "txid": "be88b650ad803c69452f0fc34656509dd8813abad5ec9cf13218836615b58ba2",
+        "created_at": datetime.now(timezone.utc),
+    },
+    {
+        "id": "pay-conf-2",
+        "agent_id": "a-marketing",
+        "vendor_id": "v-hubspot",
+        "amount_usd": 1189.0,
+        "amount_zat": 2973000000,
+        "quote_amount_usd": 1189.0,
+        "tolerance_pct": 0.0,
+        "status": "confirmed",
+        "jev_anomaly_noul": 0.02,
+        "jev_risk_score": 1.0,
+        "jev_route": "auto_approve",
+        "txid": "be88b650ad803c69452f0fc34656509dd8813abad5ec9cf13218836615b58ba2",
+        "created_at": datetime.now(timezone.utc),
+    },
+    {
+        "id": "pay-block-1",
+        "agent_id": "a-cloud-infra",
+        "vendor_id": "v-unknown",
+        "amount_usd": 499.0,
+        "amount_zat": 1248000000,
+        "quote_amount_usd": 499.0,
+        "tolerance_pct": 0.0,
+        "status": "policy_failed",
+        "policy_fail_reason": "Vendor 'v-unknown' is not in approved list for agent 'Cloud Infra Agent'",
+        "created_at": datetime.now(timezone.utc),
+    },
+]
+
 from app.database import engine, AsyncSessionLocal, Base
 
 async def seed():
@@ -94,7 +172,7 @@ async def seed():
                 address_zcash=vd["address_zcash"],
                 risk_tier=vd["risk_tier"],
             )
-            session.add(vendor)
+            await session.merge(vendor)
 
         # Insert agents
         for ag in DEMO_AGENTS:
@@ -107,10 +185,36 @@ async def seed():
                 budget_period=ag["budget_period"],
                 approved_vendors=ag["approved_vendors"],
             )
-            session.add(agent)
+            await session.merge(agent)
+
+        # Insert demo payments
+        for pm in DEMO_PAYMENTS:
+            payment = PaymentRequest(
+                id=pm["id"],
+                agent_id=pm["agent_id"],
+                vendor_id=pm["vendor_id"],
+                amount_usd=pm["amount_usd"],
+                amount_zat=pm["amount_zat"],
+                quote_amount_usd=pm["quote_amount_usd"],
+                tolerance_pct=pm["tolerance_pct"],
+                payment_date=pm["created_at"],
+                status=pm["status"],
+                policy_fail_reason=pm.get("policy_fail_reason"),
+                jev_anomaly_noul=pm.get("jev_anomaly_noul"),
+                jev_risk_score=pm.get("jev_risk_score"),
+                jev_route=pm.get("jev_route"),
+                txid=pm.get("txid"),
+                created_at=pm["created_at"],
+            )
+            await session.merge(payment)
 
         await session.commit()
-        logger.info("Demo seed complete: %d vendors, %d agents", len(DEMO_VENDORS), len(DEMO_AGENTS))
+        logger.info(
+            "Demo seed complete: %d vendors, %d agents, %d payments",
+            len(DEMO_VENDORS),
+            len(DEMO_AGENTS),
+            len(DEMO_PAYMENTS),
+        )
 
 
 if __name__ == "__main__":

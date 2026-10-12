@@ -43,6 +43,13 @@ app.include_router(payments.router, prefix="/payments", tags=["Payments"])
 app.include_router(audit.router, prefix="/audit", tags=["Audit Log"])
 app.include_router(feed.router, prefix="/feed", tags=["Real-time Feed"])
 
+# Also mount under /api prefix for frontend compatibility
+app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
+app.include_router(vendors.router, prefix="/api/vendors", tags=["Vendors"])
+app.include_router(payments.router, prefix="/api/payments", tags=["Payments"])
+app.include_router(audit.router, prefix="/api/audit", tags=["Audit Log"])
+app.include_router(feed.router, prefix="/api/feed", tags=["Real-time Feed"])
+
 
 @app.get("/health", tags=["Health"])
 async def health():

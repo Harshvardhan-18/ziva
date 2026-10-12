@@ -1,23 +1,33 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { PaymentRequest } from "@/lib/types";
 import { getAuditLog } from "@/lib/api";
 import { format } from "date-fns";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Download, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Download, ExternalLink, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default function AuditLogPage() {
   const [logs, setLogs] = useState<PaymentRequest[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadLogs = useCallback(async () => {
+    setIsLoading(true);
+    const data = await getAuditLog();
+    setLogs(data);
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
-    getAuditLog().then(setLogs);
-  }, []);
+    loadLogs();
+    const interval = setInterval(loadLogs, 10000);
+    return () => clearInterval(interval);
+  }, [loadLogs]);
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
@@ -49,15 +59,27 @@ export default function AuditLogPage() {
             Deterministic compliance ledger recording all policy engine evaluations and settlement states.
           </p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={exportCSV}
-          className="border-border hover:bg-zinc-900 text-zinc-300 font-mono text-xs h-8 px-3"
-        >
-          <Download className="size-3.5 mr-1.5" />
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadLogs}
+            disabled={isLoading}
+            className="border-border hover:bg-zinc-900 text-zinc-300 font-mono text-xs h-8 px-3"
+          >
+            <RefreshCw className={`size-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportCSV}
+            className="border-border hover:bg-zinc-900 text-zinc-300 font-mono text-xs h-8 px-3"
+          >
+            <Download className="size-3.5 mr-1.5" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <div className="border border-border bg-black rounded-lg overflow-hidden flex-1 flex flex-col">

@@ -2,32 +2,56 @@
 
 import { useEffect, useState, useRef } from "react";
 import { PaymentRequest, SummaryStats } from "@/lib/types";
-import { getStats } from "@/lib/api";
+import { getStats, getAuditLog } from "@/lib/api";
 import { PaymentCard } from "@/components/PaymentCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Bot, CheckSquare, Coins } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
+// Persistent module-level cache so transactions are NEVER wiped when switching tabs
+let cachedFeed: PaymentRequest[] = [];
+
 export default function LiveFeedPage() {
-  const [payments, setPayments] = useState<PaymentRequest[]>([]);
+  const [payments, setPayments] = useState<PaymentRequest[]>(cachedFeed);
   const [stats, setStats] = useState<SummaryStats | null>(null);
   const feedEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getStats().then(setStats);
 
+    // If cache is empty on first load, pre-populate with recent transactions from audit log
+    if (cachedFeed.length === 0) {
+      getAuditLog().then((history) => {
+        if (history && history.length > 0) {
+          setPayments((prev) => {
+            if (prev.length === 0) {
+              cachedFeed = history.slice(0, 20);
+              return cachedFeed;
+            }
+            return prev;
+          });
+        }
+      });
+    }
+
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     let eventSource: EventSource | null = null;
-    let fallbackInterval: NodeJS.Timeout;
+    let fallbackInterval: NodeJS.Timeout | null = null;
 
     try {
-      eventSource = new EventSource(`${API_URL}/api/feed/live`);
-      
+      // Connect to SSE stream
+      eventSource = new EventSource(`${API_URL}/feed/live`);
+
       eventSource.onmessage = (event) => {
         try {
           const newPayment: PaymentRequest = JSON.parse(event.data);
-          setPayments((prev) => [...prev, newPayment].slice(-50));
+          setPayments((prev) => {
+            if (prev.some((p) => p.id === newPayment.id)) return prev;
+            const updated = [...prev, newPayment].slice(-50);
+            cachedFeed = updated;
+            return updated;
+          });
         } catch {
           console.error("Failed to parse SSE data");
         }
@@ -42,6 +66,8 @@ export default function LiveFeedPage() {
     }
 
     function startFallback() {
+      if (fallbackInterval) return;
+
       const statuses: PaymentRequest["status"][] = ["auto_approved", "jev_escalated", "blocked", "confirmed"];
       const vendors = ["AWS", "GitHub", "Vercel", "Stripe", "Twilio", "OpenAI", "Anthropic"];
       const agents = ["DevOps_Bot", "Marketing_AI", "Procurement_Agent", "HR_Automator"];
@@ -51,7 +77,7 @@ export default function LiveFeedPage() {
         const amount = Math.random() * 500 + 10;
         
         const newPayment: PaymentRequest = {
-          id: `mock_${Date.now()}`,
+          id: `sim_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           agent_name: agents[Math.floor(Math.random() * agents.length)],
           vendor_name: vendors[Math.floor(Math.random() * vendors.length)],
           amount_usd: amount,
@@ -62,8 +88,12 @@ export default function LiveFeedPage() {
           requested_at: new Date().toISOString(),
         };
 
-        setPayments((prev) => [...prev, newPayment].slice(-50));
-      }, 3500);
+        setPayments((prev) => {
+          const updated = [...prev, newPayment].slice(-50);
+          cachedFeed = updated;
+          return updated;
+        });
+      }, 4000);
     }
 
     return () => {
@@ -74,7 +104,7 @@ export default function LiveFeedPage() {
 
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [payments]);
+  }, [payments.length]);
 
   return (
     <div className="max-w-5xl mx-auto flex flex-col h-full p-6 space-y-6">

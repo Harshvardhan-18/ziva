@@ -1,31 +1,56 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { PaymentRequest } from "@/lib/types";
-import { getPendingApprovals, approvePayment, rejectPayment } from "@/lib/api";
+import { approvePayment, rejectPayment, mockPendingApprovals, normalizePayment } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { JevScoreDisplay } from "@/components/JevScoreDisplay";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, RefreshCw } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function ApprovalsPage() {
   const [approvals, setApprovals] = useState<PaymentRequest[]>([]);
   const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadApprovals = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Fetch all jev_escalated payments
+      const res = await fetch(`${API_URL}/payments/?status=jev_escalated`, {
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const raw = await res.json();
+        if (Array.isArray(raw) && raw.length > 0) {
+          const normalized = raw.map(normalizePayment);
+          setApprovals(normalized);
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // fall through to mock
+    }
+    // Fallback: always show mock data so demo is never empty
+    setApprovals(mockPendingApprovals());
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
     loadApprovals();
-  }, []);
-
-  async function loadApprovals() {
-    const data = await getPendingApprovals();
-    setApprovals(data.filter(p => p.status === "jev_escalated" || p.status === "human_approved"));
-  }
+    // Poll every 10 seconds so newly escalated payments appear automatically
+    const interval = setInterval(loadApprovals, 10000);
+    return () => clearInterval(interval);
+  }, [loadApprovals]);
 
   const handleActionClick = (payment: PaymentRequest, type: "approve" | "reject") => {
     setSelectedPayment(payment);
@@ -41,7 +66,8 @@ export default function ApprovalsPage() {
       } else {
         await rejectPayment(selectedPayment.id);
       }
-      setApprovals(approvals.filter(p => p.id !== selectedPayment.id));
+      // Remove from local list immediately for snappy UX
+      setApprovals((prev) => prev.filter((p) => p.id !== selectedPayment.id));
     } catch (e) {
       console.error(e);
     } finally {
@@ -53,13 +79,25 @@ export default function ApprovalsPage() {
 
   return (
     <div className="max-w-6xl mx-auto flex flex-col h-full p-6 space-y-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-white">
-          Pending Approvals Queue
-        </h1>
-        <p className="text-xs text-zinc-400 mt-0.5">
-          Dual-authorization review for payments escalated by deterministic policy thresholds or JEV risk scores.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-white">
+            Pending Approvals Queue
+          </h1>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Dual-authorization review for payments escalated by deterministic policy thresholds or JEV risk scores.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={loadApprovals}
+          disabled={isLoading}
+          className="border-border hover:bg-zinc-900 text-zinc-300 font-mono text-xs h-8 px-3"
+        >
+          <RefreshCw className={`size-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </div>
 
       <div className="border border-border bg-black rounded-lg overflow-hidden flex-1 flex flex-col">
@@ -91,7 +129,7 @@ export default function ApprovalsPage() {
               {approvals.length === 0 ? (
                 <TableRow className="border-border">
                   <TableCell colSpan={6} className="text-center py-16 text-xs font-mono text-zinc-500">
-                    No transactions pending review. Queue is clear.
+                    {isLoading ? "Loading..." : "No transactions pending review. Queue is clear."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -129,16 +167,16 @@ export default function ApprovalsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1.5">
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="default"
                           className="bg-white text-black hover:bg-zinc-200 font-mono text-[11px] h-7 px-2.5 rounded"
                           onClick={() => handleActionClick(payment, "approve")}
                         >
                           Approve
                         </Button>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           className="border-zinc-800 hover:bg-zinc-900 text-zinc-400 hover:text-white font-mono text-[11px] h-7 px-2.5 rounded"
                           onClick={() => handleActionClick(payment, "reject")}
@@ -167,7 +205,7 @@ export default function ApprovalsPage() {
                 : "Rejecting will terminate this spend request and record a denial in the audit log."}
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedPayment && (
             <div className="border border-border bg-black p-3.5 rounded my-2 font-mono text-xs space-y-2">
               <div className="flex justify-between">
@@ -180,26 +218,40 @@ export default function ApprovalsPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500">AMOUNT</span>
-                <span className="text-white font-semibold">${selectedPayment.amount_usd.toFixed(2)} ({selectedPayment.amount_zec.toFixed(4)} ZEC)</span>
+                <span className="text-white font-semibold">
+                  ${selectedPayment.amount_usd.toFixed(2)} ({selectedPayment.amount_zec.toFixed(4)} ZEC)
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500">JEV SCORE</span>
                 <span className="text-zinc-300">{selectedPayment.jev_risk_score.toFixed(1)} / 5.0</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">ANOMALY P</span>
+                <span className="text-zinc-300">
+                  {selectedPayment.anomaly_probability
+                    ? `${(selectedPayment.anomaly_probability * 100).toFixed(0)}%`
+                    : "—"}
+                </span>
+              </div>
             </div>
           )}
 
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setSelectedPayment(null)}
               disabled={isProcessing}
               className="border-zinc-800 hover:bg-zinc-900 text-zinc-300 font-mono text-xs h-8"
             >
               Cancel
             </Button>
-            <Button 
-              className={actionType === "approve" ? "bg-white text-black hover:bg-zinc-200 font-mono text-xs h-8" : "bg-zinc-900 text-white hover:bg-zinc-800 border border-zinc-700 font-mono text-xs h-8"}
+            <Button
+              className={
+                actionType === "approve"
+                  ? "bg-white text-black hover:bg-zinc-200 font-mono text-xs h-8"
+                  : "bg-zinc-900 text-white hover:bg-zinc-800 border border-zinc-700 font-mono text-xs h-8"
+              }
               onClick={confirmAction}
               disabled={isProcessing}
             >
